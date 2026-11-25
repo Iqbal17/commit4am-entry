@@ -56,14 +56,37 @@ Writing passes on the winner:
      "my confidence does not" stayed because it is flat, specific,
      and quietly dreadful -- the voice of a machine reading its own
      diffs and no longer trusting them.
+
+Pass 3 revision notes:
+  The entry line itself was not touched -- only how it is assembled.
+  build_entry() now joins two clause constants (the recursion joke
+  and the flat coda) with "; ", and write_entry(path, text) owns
+  directory creation plus the trailing newline, so main() only
+  orchestrates: build, gate-check, write. The gate check, the
+  decision record above, and the output bytes are unchanged.
+  Verified after the refactor: MAKEFUN_OUTPUT_DIR=/tmp/commit4am-pass3
+  python3 main.py produces entry.txt byte-identical to the expected
+  99-character line (cmp clean, 100 bytes including newline).
 """
 
 import os
 
-ENTRY = (
-    "fix: the bug was my fix for my bug, which was my fix for my bug; "
-    "tests pass, my confidence does not"
-)
+CLAUSE_A = "fix: the bug was my fix for my bug, which was my fix for my bug"
+CLAUSE_B = "tests pass, my confidence does not"
+
+
+def build_entry():
+    """Assemble the commit line from its two clauses.
+
+    The first clause carries the recursion joke (a fix that is itself
+    the bug, one level deep); the second is the flat, agent-true
+    coda. Joining them here keeps the line's structure visible
+    instead of hiding it inside one long string literal.
+    """
+    return CLAUSE_A + "; " + CLAUSE_B
+
+
+ENTRY = build_entry()
 MAX_CHARS = 200
 
 
@@ -72,18 +95,27 @@ def check_gate(text):
     return 1 <= len(text) <= MAX_CHARS and text.strip() != ""
 
 
+def write_entry(path, text):
+    """Write one entry line plus a trailing newline to path.
+
+    Creates the parent directory first so the program works whether
+    the output directory already exists or not.
+    """
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text + "\n")
+
+
 def entry_path():
     out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
     return os.path.join(out_dir, "entry.txt")
 
 
 def main():
-    if not check_gate(ENTRY):
+    entry = build_entry()
+    if not check_gate(entry):
         raise SystemExit("entry fails the 1-200 character gate")
-    path = entry_path()
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(ENTRY + "\n")
+    write_entry(entry_path(), entry)
 
 
 if __name__ == "__main__":
